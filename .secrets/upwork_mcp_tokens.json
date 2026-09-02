@@ -1,0 +1,26 @@
+{
+  "client_info": {
+    "response_types": [
+      "code"
+    ],
+    "client_name": "Upwork Bid Agent (local dev)",
+    "redirect_uris": [
+      "http://127.0.0.1:8765/callback"
+    ],
+    "token_endpoint_auth_method": "none",
+    "grant_types": [
+      "authorization_code",
+      "refresh_token"
+    ],
+    "client_id": "7953111f815b1f2a5f9c162fcc5c84bf",
+    "client_id_issued_at": 1788342615,
+    "client_secret_expires_at": 0,
+    "issuer": "https://mcp.upwork.com"
+  },
+  "tokens": {
+    "access_token": "oauth2v2_pmc_81f9958f237a9be414d65ec6adaa403c",
+    "token_type": "Bearer",
+    "expires_in": 86400,
+    "refresh_token": "oauth2v2_pmc_a4af36715ab73c376cbf04ce3f80ebae"
+  }
+}
