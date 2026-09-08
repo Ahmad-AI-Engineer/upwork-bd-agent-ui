@@ -1,27 +1,27 @@
 from __future__ import annotations
-
 import asyncio
 import json
 import logging
 import os
 import threading
+import time
 import webbrowser
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
-
 from mcp import ClientSession
 from mcp.client.auth import OAuthClientProvider, TokenStorage
 from mcp.client.streamable_http import create_mcp_http_client, streamable_http_client
 from mcp.shared.auth import (
     AuthorizationCodeResult,
+    OAuthMetadata,
     OAuthClientInformationFull,
     OAuthClientMetadata,
     OAuthToken,
 )
 
-logger = logging.getLogger("upwork_connection")
+logger = logging.getLogger("upwork_connection_handler")
 
 UPWORK_MCP_URL = "https://mcp.upwork.com/mcp"
 
@@ -36,6 +36,22 @@ REDIRECT_PORT = 8765
 REDIRECT_URI = f"http://127.0.0.1:{REDIRECT_PORT}/callback"
 
 OAUTH_CALLBACK_TIMEOUT_SECONDS = 300
+
+HEADLESS = os.getenv("UPWORK_HEADLESS", "").strip().lower() in ("1", "true", "yes")
+
+TOKEN_REFRESH_MARGIN_SECONDS = 300
+
+
+class AuthorizationRequiredError(RuntimeError):
+    pass
+
+
+_HEADLESS_MESSAGE = (
+    "Upwork authorization is required but no browser is available "
+    f"(UPWORK_HEADLESS is set). The cached token at {{path}} is missing, expired, "
+    "or could not be refreshed. Re-authorize on the host with: "
+    "python src/upwork_connection.py"
+)
 
 
 class FileTokenStorage(TokenStorage):
@@ -56,12 +72,34 @@ class FileTokenStorage(TokenStorage):
         self._path.write_text(json.dumps(self._data, indent=2))
 
     async def get_tokens(self) -> OAuthToken | None:
+        self._data = self._load()
         raw = self._data.get("tokens")
-        return OAuthToken.model_validate(raw) if raw else None
+        if not raw:
+            return None
+
+        token = OAuthToken.model_validate(raw)
+        expires_at = self._data.get("expires_at")
+
+        if expires_at and token.refresh_token:
+            remaining = float(expires_at) - time.time()
+            if remaining <= TOKEN_REFRESH_MARGIN_SECONDS:
+                logger.info(
+                    "Cached access token expires in %.0fs; forcing refresh-token exchange",
+                    remaining,
+                )
+                token.access_token = ""
+        return token
 
     async def set_tokens(self, tokens: OAuthToken) -> None:
         self._data["tokens"] = tokens.model_dump(mode="json", exclude_none=True)
+        if tokens.expires_in:
+            self._data["expires_at"] = time.time() + float(tokens.expires_in)
         self._save()
+        logger.info(
+            "Stored Upwork token (expires_in=%s, refresh_token=%s)",
+            tokens.expires_in,
+            "yes" if tokens.refresh_token else "no",
+        )
 
     async def get_client_info(self) -> OAuthClientInformationFull | None:
         raw = self._data.get("client_info")
@@ -86,7 +124,7 @@ def _wait_for_oauth_callback() -> _OAuthCallbackResult:
     done = threading.Event()
 
     class Handler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):  # noqa: N802
+        def do_GET(self):
             parsed = urlparse(self.path)
             qs = parse_qs(parsed.query)
             result.code = qs.get("code", [None])[0]
@@ -115,12 +153,16 @@ def _wait_for_oauth_callback() -> _OAuthCallbackResult:
 
 
 async def _redirect_handler(auth_url: str) -> None:
+    if HEADLESS:
+        raise AuthorizationRequiredError(_HEADLESS_MESSAGE.format(path=TOKEN_CACHE_PATH))
     logger.info("Opening browser for Upwork login/consent")
     logger.info("If it does not open automatically, visit: %s", auth_url)
     webbrowser.open(auth_url)
 
 
 async def _callback_handler() -> AuthorizationCodeResult:
+    if HEADLESS:
+        raise AuthorizationRequiredError(_HEADLESS_MESSAGE.format(path=TOKEN_CACHE_PATH))
     result = await asyncio.to_thread(_wait_for_oauth_callback)
     if result.error or not result.code:
         raise RuntimeError(f"OAuth callback failed: {result.error or 'no code received'}")
@@ -145,9 +187,27 @@ def build_oauth_provider() -> OAuthClientProvider:
     )
 
 
+AS_METADATA_URL = "https://mcp.upwork.com/.well-known/oauth-authorization-server"
+
+
+async def prime_oauth_metadata(provider: OAuthClientProvider) -> None:
+    if provider.context.oauth_metadata is not None:
+        return
+    try:
+        async with create_mcp_http_client() as client:
+            response = await client.get(AS_METADATA_URL)
+            response.raise_for_status()
+            metadata = OAuthMetadata.model_validate_json(await response.aread())
+        provider.context.oauth_metadata = metadata
+        logger.debug("Primed OAuth metadata; token endpoint: %s", metadata.token_endpoint)
+    except Exception:
+        logger.warning("Could not prime OAuth metadata from %s", AS_METADATA_URL, exc_info=True)
+
+
 @asynccontextmanager
 async def upwork_session():
     auth = build_oauth_provider()
+    await prime_oauth_metadata(auth)
     http_client = create_mcp_http_client(auth=auth)
 
     async with http_client:
@@ -157,13 +217,32 @@ async def upwork_session():
                 yield session
 
 
+def _find_auth_error(exc: BaseException) -> AuthorizationRequiredError | None:
+    if isinstance(exc, AuthorizationRequiredError):
+        return exc
+    if isinstance(exc, BaseExceptionGroup):
+        for sub in exc.exceptions:
+            found = _find_auth_error(sub)
+            if found is not None:
+                return found
+    if exc.__cause__ is not None:
+        found = _find_auth_error(exc.__cause__)
+        if found is not None:
+            return found
+    return None
+
+
 async def run_with_session(operation, attempts: int = 4, initial_delay: float = 3.0):
     delay = initial_delay
     for attempt in range(1, attempts + 1):
         try:
             async with upwork_session() as session:
                 return await operation(session)
-        except Exception:
+        except Exception as exc:
+            auth_error = _find_auth_error(exc)
+            if auth_error is not None:
+                logger.error("%s", auth_error)
+                raise auth_error from None
             if attempt == attempts:
                 logger.error("MCP session failed after %d attempt(s)", attempts)
                 raise
@@ -176,6 +255,59 @@ async def run_with_session(operation, attempts: int = 4, initial_delay: float = 
             )
             await asyncio.sleep(delay)
             delay *= 2
+
+
+def token_seconds_remaining() -> float | None:
+    if not TOKEN_CACHE_PATH.exists():
+        return None
+    try:
+        data = json.loads(TOKEN_CACHE_PATH.read_text())
+    except (json.JSONDecodeError, OSError):
+        return None
+    if not (data.get("tokens") or {}).get("access_token"):
+        return None
+    expires_at = data.get("expires_at")
+    if not expires_at:
+        return None
+    return float(expires_at) - time.time()
+
+
+async def ensure_access_token() -> bool:
+    remaining = token_seconds_remaining()
+
+    if remaining is None:
+        logger.info("No cached access token; authorizing")
+    elif remaining > TOKEN_REFRESH_MARGIN_SECONDS:
+        logger.info("Access token valid for %.1f hour(s); no refresh needed", remaining / 3600)
+        return True
+    else:
+        logger.info("Access token expired or expiring (%.0fs left); refreshing", remaining)
+
+    transport_logger = logging.getLogger("mcp.client.streamable_http")
+    previous_level = transport_logger.level
+    transport_logger.setLevel(logging.CRITICAL)
+    try:
+        async with upwork_session():
+            pass
+    except AuthorizationRequiredError:
+        logger.error(
+            "Could not refresh the access token and no browser is available. "
+            "Re-authorize on the host with: python orchestration/upwork_connection_handler.py"
+        )
+        return False
+    except Exception:
+        logger.exception("Access token refresh failed")
+        return False
+
+    finally:
+        transport_logger.setLevel(previous_level)
+
+    refreshed = token_seconds_remaining()
+    if refreshed is None:
+        logger.warning("Token refresh completed but no expiry was stored")
+    else:
+        logger.info("Access token refreshed; valid for %.1f hour(s)", refreshed / 3600)
+    return True
 
 
 async def check_connection() -> None:

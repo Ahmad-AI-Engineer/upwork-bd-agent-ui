@@ -1,0 +1,15 @@
+# Local environment and credentials
+.env
+.secrets/
+
+# Generated at runtime
+jobs/
+logs/
+config/seen_jobs.json
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.pytest_cache/
+venv/

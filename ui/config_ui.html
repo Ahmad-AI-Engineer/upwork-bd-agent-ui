@@ -1,0 +1,630 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Upwork Bid Agent</title>
+<style>
+  :root {
+    --bg: #f4f4f4;
+    --dot: #d2d2d2;
+    --paper: #ffffff;
+    --ink: #111111;
+    --muted: #7a7a7a;
+    --line: #e2e2e2;
+    --accent: #d71921;
+    --accent-wash: #fdf3f3;
+    --ok: #1f7a4d;
+    --ok-wash: #f1f8f4;
+    --field: #fcfcfc;
+    --mono: Consolas, "SF Mono", Menlo, monospace;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    min-height: 100vh;
+    padding: 40px 20px;
+    background-color: var(--bg);
+    background-image: radial-gradient(var(--dot) 1px, transparent 1px);
+    background-size: 28px 28px;
+    color: var(--ink);
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+
+  .wrap { width: min(1180px, 100%); margin: 0 auto; }
+
+  .card {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    box-shadow: 0 24px 60px rgba(0, 0, 0, 0.06);
+    margin-bottom: 18px;
+  }
+
+  .card-head { padding: 28px 32px 24px; border-bottom: 1px solid var(--line); }
+  .head-row {
+    display: flex; align-items: flex-end;
+    justify-content: space-between; gap: 18px; flex-wrap: wrap;
+  }
+
+  .dots { display: flex; gap: 5px; margin-bottom: 18px; }
+  .dots i { width: 6px; height: 6px; border-radius: 50%; background: var(--ink); }
+  .dots i:nth-child(4) { background: var(--accent); }
+  .dots i:nth-child(n + 5) { background: var(--dot); }
+
+  h1 {
+    margin: 0; font-size: 1.55rem; font-weight: 700;
+    letter-spacing: 0.22em; text-transform: uppercase; line-height: 1.15;
+  }
+
+  .card-body { padding: 26px 32px 30px; }
+
+  .legend, .label {
+    font-family: var(--mono); font-size: 0.7rem; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase; color: var(--muted);
+  }
+  .legend { margin: 0 0 14px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .group + .group { margin-top: 26px; }
+
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); gap: 16px; }
+
+  .field label { display: block; margin-bottom: 7px; }
+  .help { margin-top: 6px; font-size: 0.79rem; font-weight: 600; color: #5f6670; }
+
+  input[type="text"], select {
+    width: 100%; border: 1px solid var(--line); border-radius: 3px;
+    padding: 11px 12px; font-size: 0.9rem; font-family: var(--mono);
+    background: var(--field); color: var(--ink);
+  }
+  select[multiple] { padding: 6px; height: auto; }
+  input[type="text"]:focus, select:focus { outline: none; border-color: var(--ink); background: #fff; }
+
+  .check { display: flex; align-items: center; gap: 9px; font-size: 0.88rem; }
+  .check input { width: 15px; height: 15px; accent-color: var(--ink); }
+
+  button {
+    border: 1px solid var(--ink); border-radius: 3px;
+    padding: 13px 20px; background: var(--ink); color: #fff;
+    font-size: 0.75rem; font-weight: 700; letter-spacing: 0.16em;
+    text-transform: uppercase; cursor: pointer;
+    font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+    transition: background 0.12s ease;
+  }
+  button:hover { background: #000; }
+  button.ghost { background: transparent; color: var(--ink); }
+  button.ghost:hover { background: #fafafa; }
+  button.danger { border-color: var(--accent); color: var(--accent); background: transparent; }
+  button.danger:hover { background: var(--accent-wash); }
+  button.small { padding: 10px 14px; font-size: 0.66rem; }
+
+  .board { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+  @media (max-width: 780px) { .board { grid-template-columns: 1fr; } }
+
+  .column {
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 4px; box-shadow: 0 24px 60px rgba(0, 0, 0, 0.06);
+    display: flex; flex-direction: column; min-height: 240px;
+  }
+  .column-head {
+    padding: 18px 20px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  }
+  .column-title {
+    font-family: var(--mono); font-size: 0.72rem; font-weight: 700;
+    letter-spacing: 0.18em; text-transform: uppercase;
+  }
+  .column-inactive .column-title { color: var(--accent); }
+  .column-body { padding: 16px; display: flex; flex-direction: column; gap: 12px; flex: 1; }
+  .column.drop-target { background: #fbfbfb; }
+  .column.drop-target .column-body { outline: 2px dashed var(--ink); outline-offset: -8px; }
+  .column-inactive.drop-target .column-body { outline-color: var(--accent); }
+
+  .empty {
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted);
+    border: 1px dashed var(--line); border-radius: 3px;
+    padding: 26px 14px; text-align: center;
+  }
+
+  .qcard {
+    border: 1px solid var(--line); border-radius: 3px;
+    padding: 14px 16px; background: var(--field);
+    cursor: grab; transition: border-color 0.12s ease, box-shadow 0.12s ease;
+  }
+  .qcard:hover { border-color: #b8b8b8; box-shadow: 0 6px 18px rgba(0,0,0,0.05); }
+  .qcard.dragging { opacity: 0.45; }
+  .qcard-title {
+    font-weight: 700; font-size: 0.95rem; letter-spacing: 0.06em;
+    text-transform: uppercase; word-break: break-word;
+  }
+  .qcard-meta {
+    margin-top: 9px; font-family: var(--mono);
+    font-size: 0.66rem; letter-spacing: 0.04em; color: var(--muted);
+  }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+  .chip {
+    font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.08em;
+    text-transform: uppercase; color: var(--muted);
+    border: 1px solid var(--line); border-radius: 2px; padding: 3px 7px; background: #fff;
+  }
+
+  .bar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 18px 24px; margin-top: 18px;
+    background: var(--paper); border: 1px solid var(--line); border-radius: 4px;
+  }
+  .count {
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.14em;
+    text-transform: uppercase; color: var(--muted); margin-left: auto;
+  }
+
+  .msg {
+    display: none; margin-bottom: 18px; padding: 14px 16px;
+    border: 1px solid var(--accent); border-left-width: 3px; border-radius: 3px;
+    font-size: 0.86rem; white-space: pre-line;
+  }
+  .msg.err { display: block; background: var(--accent-wash); color: var(--accent); }
+  .msg.ok { display: block; background: var(--ok-wash); border-color: var(--ok); color: var(--ok); }
+
+  .overlay {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: rgba(17, 17, 17, 0.45);
+    padding: 32px 20px; overflow-y: auto;
+  }
+  .overlay.open { display: block; }
+  .modal {
+    width: min(940px, 100%); margin: 0 auto;
+    background: var(--paper); border: 1px solid var(--line);
+    border-radius: 4px; box-shadow: 0 30px 80px rgba(0,0,0,0.25);
+  }
+  .modal-head {
+    padding: 22px 28px; border-bottom: 1px solid var(--line);
+    display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap;
+  }
+  .modal-title {
+    font-size: 1.05rem; font-weight: 700;
+    letter-spacing: 0.14em; text-transform: uppercase;
+  }
+  .modal-body { padding: 24px 28px; }
+  .modal-foot {
+    padding: 18px 28px; border-top: 1px solid var(--line);
+    display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  }
+  .modal-foot .spacer { margin-left: auto; }
+
+  @media (max-width: 560px) {
+    .card-head, .card-body, .modal-head, .modal-body, .modal-foot {
+      padding-left: 20px; padding-right: 20px;
+    }
+    h1 { font-size: 1.2rem; letter-spacing: 0.16em; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="card">
+    <div class="card-head head-row">
+      <div>
+        <div class="dots"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>
+        <h1>Upwork Bid Agent</h1>
+      </div>
+      <button class="danger small" onclick="resetAllTimestamps()">Reset all timestamps</button>
+    </div>
+    <div class="card-body">
+      <div id="msg" class="msg"></div>
+      <div class="legend">Runtime</div>
+      <div class="grid">
+        <div class="field">
+          <label class="label" for="org">Upwork account</label>
+          <select id="org" onchange="persist('Account updated.')"></select>
+          <div class="help">Which identity the searches run as.</div>
+        </div>
+        <div class="field">
+          <label class="label" for="interval">Poll interval</label>
+          <select id="interval" onchange="persist('Poll interval updated.')"></select>
+          <div class="help">How often the poller checks for new jobs.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="board">
+    <div class="column" id="col-active"
+         ondragover="onDragOver(event, true)" ondragleave="onDragLeave(event)"
+         ondrop="onDrop(event, true)">
+      <div class="column-head">
+        <span class="column-title">Active</span>
+        <span class="column-title" id="count-active"></span>
+      </div>
+      <div class="column-body" id="body-active"></div>
+    </div>
+
+    <div class="column column-inactive" id="col-inactive"
+         ondragover="onDragOver(event, false)" ondragleave="onDragLeave(event)"
+         ondrop="onDrop(event, false)">
+      <div class="column-head">
+        <span class="column-title">Paused</span>
+        <span class="column-title" id="count-inactive"></span>
+      </div>
+      <div class="column-body" id="body-inactive"></div>
+    </div>
+  </div>
+
+  <div class="bar">
+    <button onclick="addQuery()">Add search query</button>
+    <span id="count" class="count"></span>
+  </div>
+</div>
+
+<div class="overlay" id="overlay" onclick="onOverlayClick(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-head">
+      <span class="modal-title" id="modal-title">Search query</span>
+      <label class="check">
+        <input type="checkbox" id="modal-enabled">
+        <span>Active</span>
+      </label>
+    </div>
+    <div class="modal-body">
+      <div id="modal-msg" class="msg"></div>
+      <div id="modal-groups"></div>
+      <div class="group">
+        <div class="legend">Dedup timestamp</div>
+        <div class="grid">
+          <div class="field">
+            <label class="label">Last seen</label>
+            <div class="help" id="modal-timestamp" style="margin-top:11px"></div>
+            <label class="check" style="margin-top:10px">
+              <input type="checkbox" id="modal-reset">
+              <span>Reset timestamp on save</span>
+            </label>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button onclick="saveModal()">Save query</button>
+      <button class="ghost" onclick="closeModal()">Cancel</button>
+      <span class="spacer"></span>
+      <button class="danger small" onclick="removeQuery()">Remove query</button>
+    </div>
+  </div>
+</div>
+
+<script>
+let SCHEMA = null;
+let CONFIG = null;
+let editing = null;
+let dragIndex = null;
+
+function esc(s) {
+  return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+function queryOf(d) {
+  return ((d.filters || {}).query || d.query || "").trim();
+}
+
+function plural(n) {
+  return n + " search quer" + (n === 1 ? "y" : "ies");
+}
+
+function flash(text, ok) {
+  const msg = document.getElementById("msg");
+  msg.className = "msg " + (ok ? "ok" : "err");
+  msg.textContent = text;
+  window.scrollTo({ top: 0, behavior: "smooth" });
+}
+
+async function boot() {
+  SCHEMA = await (await fetch("/api/schema")).json();
+  CONFIG = await (await fetch("/api/config")).json();
+  if (!Array.isArray(CONFIG.domains)) CONFIG.domains = [];
+
+  document.getElementById("org").innerHTML = SCHEMA.accounts.map(function (a) {
+    return '<option value="' + esc(a.org_uid) + '"' +
+      (a.org_uid === CONFIG.org_uid ? " selected" : "") + ">" + esc(a.label) + "</option>";
+  }).join("");
+
+  const cur = CONFIG.poll_interval_minutes || 10;
+  document.getElementById("interval").innerHTML = SCHEMA.poll_intervals.map(function (m) {
+    const text = m < 60 ? m + " minutes" : (m / 60) + (m === 60 ? " hour" : " hours");
+    return '<option value="' + m + '"' + (m === cur ? " selected" : "") + ">" + text + "</option>";
+  }).join("");
+
+  render();
+}
+
+function summaryChips(filters) {
+  const keep = ["job_type", "experience_level", "budget_min", "rate_min",
+                "proposals_max", "verified_payment_only", "limit"];
+  const out = [];
+  keep.forEach(function (name) {
+    const v = filters[name];
+    if (v === undefined || v === null || v === "" || v === false) return;
+    if (name === "verified_payment_only") { out.push("verified only"); return; }
+    if (name === "budget_min") { out.push("budget >= " + v); return; }
+    if (name === "rate_min") { out.push("rate >= " + v); return; }
+    if (name === "proposals_max") { out.push("proposals <= " + v); return; }
+    if (name === "limit") { out.push(v + " per run"); return; }
+    out.push(String(v).replace(/_/g, " "));
+  });
+  const skills = filters.skills;
+  if (Array.isArray(skills) && skills.length) out.push(skills.length + " skill(s)");
+  return out;
+}
+
+function cardHtml(d, i) {
+  const filters = d.filters || {};
+  const chips = summaryChips(filters).map(function (c) {
+    return '<span class="chip">' + esc(c) + "</span>";
+  }).join("");
+  const ts = d.last_seen_posted_at ? esc(d.last_seen_posted_at) : "no timestamp yet";
+  return '<div class="qcard" draggable="true" data-i="' + i + '"' +
+    ' ondragstart="onDragStart(event,' + i + ')" ondragend="onDragEnd(event)"' +
+    ' onclick="openModal(' + i + ')">' +
+    '<div class="qcard-title">' + (esc(queryOf(d)) || "untitled") + "</div>" +
+    (chips ? '<div class="chips">' + chips + "</div>" : "") +
+    '<div class="qcard-meta">' + ts + "</div></div>";
+}
+
+function render() {
+  const active = [], paused = [];
+  CONFIG.domains.forEach(function (d, i) {
+    (d.enabled !== false ? active : paused).push(cardHtml(d, i));
+  });
+
+  document.getElementById("body-active").innerHTML =
+    active.join("") || '<div class="empty">Drop a query here to activate</div>';
+  document.getElementById("body-inactive").innerHTML =
+    paused.join("") || '<div class="empty">Drop a query here to pause</div>';
+
+  document.getElementById("count-active").textContent = active.length;
+  document.getElementById("count-inactive").textContent = paused.length;
+  document.getElementById("count").textContent = plural(CONFIG.domains.length);
+}
+
+function onDragStart(event, i) {
+  dragIndex = i;
+  event.currentTarget.classList.add("dragging");
+  event.dataTransfer.effectAllowed = "move";
+  event.dataTransfer.setData("text/plain", String(i));
+}
+
+function onDragEnd(event) {
+  event.currentTarget.classList.remove("dragging");
+  dragIndex = null;
+}
+
+function onDragOver(event, active) {
+  if (dragIndex === null) return;
+  event.preventDefault();
+  document.getElementById(active ? "col-active" : "col-inactive").classList.add("drop-target");
+}
+
+function onDragLeave(event) {
+  event.currentTarget.classList.remove("drop-target");
+}
+
+async function onDrop(event, active) {
+  event.preventDefault();
+  document.getElementById("col-active").classList.remove("drop-target");
+  document.getElementById("col-inactive").classList.remove("drop-target");
+
+  const i = dragIndex !== null ? dragIndex : Number(event.dataTransfer.getData("text/plain"));
+  dragIndex = null;
+  if (isNaN(i) || !CONFIG.domains[i]) return;
+  if ((CONFIG.domains[i].enabled !== false) === active) return;
+
+  CONFIG.domains[i].enabled = active;
+  render();
+  await persist(esc(queryOf(CONFIG.domains[i])) + (active ? " activated." : " paused."));
+}
+
+function fieldHtml(f, val) {
+  const id = "mf_" + f.name;
+  const help = f.help ? '<div class="help">' + esc(f.help) + "</div>" : "";
+  const attrs = 'id="' + id + '" data-name="' + f.name + '"';
+  const lab = '<label class="label" for="' + id + '">' + esc(f.label) + "</label>";
+  let input;
+
+  if (f.type === "select") {
+    const list = f.options || (SCHEMA.options[f.options_from] || []);
+    if (!list.length) {
+      return '<div class="field">' + lab +
+        '<input type="text" ' + attrs + ' value="' + esc(val) + '">' +
+        '<div class="help">No option list discovered yet. Free text for now.</div></div>';
+    }
+    const num = f.numeric ? ' data-num="1"' : "";
+    const opts = ['<option value="">Any</option>'].concat(list.map(function (o) {
+      return '<option value="' + esc(o) + '"' +
+        (String(val) === String(o) ? " selected" : "") + ">" + esc(o) + "</option>";
+    }));
+    input = "<select " + attrs + num + ">" + opts.join("") + "</select>";
+  } else if (f.type === "multiselect") {
+    const list = f.options || (SCHEMA.options[f.options_from] || []);
+    const sel = Array.isArray(val) ? val.map(String) : [];
+    if (!list.length) {
+      input = '<input type="text" ' + attrs + ' data-tags="1" placeholder="comma separated" value="' +
+        esc(sel.join(", ")) + '">';
+    } else {
+      input = '<select multiple size="6" ' + attrs + ' data-multi="1">' + list.map(function (o) {
+        return '<option value="' + esc(o) + '"' +
+          (sel.indexOf(String(o)) >= 0 ? " selected" : "") + ">" + esc(o) + "</option>";
+      }).join("") + "</select>";
+    }
+  } else if (f.type === "bool") {
+    return '<div class="field"><label class="check">' +
+      '<input type="checkbox" ' + attrs + (val ? " checked" : "") + ">" +
+      "<span>" + esc(f.label) + "</span></label>" + help + "</div>";
+  } else if (f.type === "tags") {
+    const v = Array.isArray(val) ? val.join(", ") : (val || "");
+    input = '<input type="text" ' + attrs + ' data-tags="1" placeholder="comma separated" value="' + esc(v) + '">';
+  } else {
+    input = '<input type="text" ' + attrs + ' value="' + esc(val) + '">';
+  }
+  return '<div class="field">' + lab + input + help + "</div>";
+}
+
+function openModal(i) {
+  const d = CONFIG.domains[i];
+  if (!d) return;
+  editing = i;
+  const filters = d.filters || {};
+
+  document.getElementById("modal-title").textContent = queryOf(d) || "New search query";
+  document.getElementById("modal-enabled").checked = d.enabled !== false;
+  document.getElementById("modal-reset").checked = false;
+  document.getElementById("modal-timestamp").textContent =
+    d.last_seen_posted_at || "none, next poll takes a fresh baseline";
+  document.getElementById("modal-msg").className = "msg";
+  document.getElementById("modal-msg").textContent = "";
+
+  document.getElementById("modal-groups").innerHTML = SCHEMA.groups.map(function (g) {
+    return '<div class="group"><div class="legend">' + esc(g.group) + '</div><div class="grid">' +
+      g.fields.map(function (f) { return fieldHtml(f, filters[f.name]); }).join("") + "</div></div>";
+  }).join("");
+
+  const queryInput = document.querySelector('#modal-groups [data-name="query"]');
+  if (queryInput) {
+    queryInput.addEventListener("input", function () {
+      document.getElementById("modal-title").textContent =
+        queryInput.value.trim() || "New search query";
+    });
+    queryInput.focus();
+  }
+
+  document.getElementById("overlay").classList.add("open");
+}
+
+function closeModal() {
+  document.getElementById("overlay").classList.remove("open");
+  editing = null;
+}
+
+function onOverlayClick(event) {
+  if (event.target.id === "overlay") closeModal();
+}
+
+function readModalFilters() {
+  const filters = {};
+  document.querySelectorAll("#modal-groups [data-name]").forEach(function (el) {
+    const name = el.dataset.name;
+    let v;
+    if (el.dataset.multi) {
+      v = Array.from(el.selectedOptions).map(function (o) { return o.value; });
+    } else {
+      v = el.type === "checkbox" ? el.checked : el.value;
+    }
+    if (el.dataset.tags) v = v.split(",").map(function (s) { return s.trim(); }).filter(Boolean);
+    else if (el.dataset.num && v !== "") v = Number(v);
+    if (typeof v === "string") v = v.trim();
+    filters[name] = v;
+  });
+  return filters;
+}
+
+async function saveModal() {
+  if (editing === null) return;
+  const d = CONFIG.domains[editing];
+  d.filters = readModalFilters();
+  d.enabled = document.getElementById("modal-enabled").checked;
+  d.reset_timestamp = document.getElementById("modal-reset").checked;
+
+  const ok = await persist(null, true);
+  if (!ok) return;
+  closeModal();
+  flash("Saved. " + plural(CONFIG.domains.length) + " applied on the next poll.", true);
+}
+
+async function removeQuery() {
+  if (editing === null) return;
+  const name = queryOf(CONFIG.domains[editing]) || "this query";
+  if (!confirm("Remove " + name + "?")) return;
+  CONFIG.domains.splice(editing, 1);
+  editing = null;
+  render();
+  closeModal();
+  await persist("Removed " + name + ".");
+}
+
+function addQuery() {
+  CONFIG.domains.push({
+    enabled: true,
+    filters: { query: "", limit: 10, sort: "recency" },
+    last_seen_posted_at: null
+  });
+  render();
+  openModal(CONFIG.domains.length - 1);
+}
+
+async function persist(successText, inModal) {
+  const payload = {
+    org_uid: document.getElementById("org").value,
+    poll_interval_minutes: Number(document.getElementById("interval").value),
+    domains: CONFIG.domains.map(function (d) {
+      return {
+        enabled: d.enabled !== false,
+        filters: d.filters || {},
+        reset_timestamp: !!d.reset_timestamp
+      };
+    })
+  };
+
+  const res = await fetch("/api/config", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+  const data = await res.json();
+
+  if (!res.ok) {
+    const detail = Array.isArray(data.detail) ? data.detail.join("\n") : String(data.detail);
+    if (inModal) {
+      const m = document.getElementById("modal-msg");
+      m.className = "msg err";
+      m.textContent = "Not saved:\n" + detail;
+    } else {
+      flash("Not saved:\n" + detail, false);
+    }
+    return false;
+  }
+
+  CONFIG = await (await fetch("/api/config")).json();
+  if (!Array.isArray(CONFIG.domains)) CONFIG.domains = [];
+  render();
+  if (successText) flash(successText, true);
+  return true;
+}
+
+async function resetAllTimestamps() {
+  const count = CONFIG.domains.length;
+  const label = "search quer" + (count === 1 ? "y" : "ies");
+  if (!confirm("Reset the timestamp on all " + count + " " + label +
+      "? The next poll takes a fresh baseline and re-fetches the latest jobs.")) {
+    return;
+  }
+  const res = await fetch("/api/reset-timestamps", { method: "POST" });
+  const data = await res.json();
+  if (res.ok) {
+    CONFIG = await (await fetch("/api/config")).json();
+    render();
+    flash("Timestamp reset on " + plural(data.reset) + ". Applied on the next poll.", true);
+  } else {
+    flash("Reset failed: " + (data.detail || res.status), false);
+  }
+}
+
+document.addEventListener("keydown", function (e) {
+  if (e.key === "Escape") closeModal();
+});
+
+boot();
+</script>
+</body>
+</html>

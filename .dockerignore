@@ -4,7 +4,6 @@ __pycache__
 *.pyc
 .secrets
 jobs
-logs
 venv
 .env
 README.md

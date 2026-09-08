@@ -1,0 +1,110 @@
+{
+  "org_uid": "682932163754856448",
+  "org_label": "Axiom World (Agency)",
+  "poll_interval_minutes": 2,
+  "crm_enabled": true,
+  "domains": [
+    {
+      "enabled": true,
+      "filters": {
+        "query": "Data engineering",
+        "sort": "recency",
+        "limit": 10,
+        "verified_payment_only": false,
+        "previous_clients_only": false
+      },
+      "last_seen_posted_at": "2026-09-08T07:54:01.365Z"
+    },
+    {
+      "enabled": true,
+      "filters": {
+        "query": "Data analytics",
+        "sort": "recency",
+        "limit": 10,
+        "rate_min": 20,
+        "proposals_min": 0,
+        "proposals_max": 5,
+        "verified_payment_only": true,
+        "previous_clients_only": false
+      },
+      "last_seen_posted_at": "2026-09-05T14:19:59.705Z"
+    },
+    {
+      "enabled": true,
+      "filters": {
+        "query": "Artificial Intelligence",
+        "sort": "recency",
+        "limit": 10,
+        "verified_payment_only": false,
+        "previous_clients_only": false
+      },
+      "last_seen_posted_at": "2026-09-08T11:15:47.338Z"
+    },
+    {
+      "enabled": true,
+      "filters": {
+        "query": "Langchain",
+        "sort": "recency",
+        "limit": 10,
+        "verified_payment_only": false,
+        "previous_clients_only": false
+      },
+      "last_seen_posted_at": "2026-09-08T08:01:49.655Z"
+    },
+    {
+      "enabled": true,
+      "filters": {
+        "query": "Accounting",
+        "sort": "recency",
+        "limit": 10,
+        "verified_payment_only": false,
+        "previous_clients_only": false
+      },
+      "last_seen_posted_at": "2026-09-08T09:38:04.843Z"
+    },
+    {
+      "enabled": true,
+      "filters": {
+        "query": "Odoo",
+        "sort": "recency",
+        "limit": 10,
+        "verified_payment_only": false,
+        "previous_clients_only": false
+      },
+      "last_seen_posted_at": "2026-09-08T09:17:30.591Z"
+    },
+    {
+      "enabled": true,
+      "filters": {
+        "query": "Netsuite",
+        "sort": "recency",
+        "limit": 10,
+        "verified_payment_only": false,
+        "previous_clients_only": false
+      },
+      "last_seen_posted_at": "2026-09-06T21:27:03.220Z"
+    },
+    {
+      "enabled": true,
+      "filters": {
+        "query": "AI Automation",
+        "sort": "recency",
+        "limit": 10,
+        "verified_payment_only": false,
+        "previous_clients_only": false
+      },
+      "last_seen_posted_at": "2026-09-08T11:15:47.338Z"
+    },
+    {
+      "enabled": true,
+      "filters": {
+        "query": "Dev Ops",
+        "sort": "recency",
+        "limit": 10,
+        "verified_payment_only": false,
+        "previous_clients_only": false
+      },
+      "last_seen_posted_at": "2026-09-08T10:44:46.954Z"
+    }
+  ]
+}
