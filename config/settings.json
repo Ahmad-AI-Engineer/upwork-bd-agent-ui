@@ -1,6 +1,6 @@
 {
-  "org_uid": "682932163754856448",
-  "org_label": "Axiom World (Agency)",
+  "org_uid": "2011147286599802781",
+  "org_label": "Shaban Nawaz (Freelancer)",
   "poll_interval_minutes": 15,
   "crm_enabled": true,
   "domains": [
@@ -13,7 +13,7 @@
         "verified_payment_only": false,
         "previous_clients_only": false
       },
-      "last_seen_posted_at": "2026-09-08T07:54:01.365Z"
+      "last_seen_posted_at": null
     },
     {
       "enabled": true,
@@ -27,7 +27,7 @@
         "verified_payment_only": true,
         "previous_clients_only": false
       },
-      "last_seen_posted_at": "2026-09-05T14:19:59.705Z"
+      "last_seen_posted_at": null
     },
     {
       "enabled": true,
@@ -38,7 +38,7 @@
         "verified_payment_only": false,
         "previous_clients_only": false
       },
-      "last_seen_posted_at": "2026-09-08T11:15:47.338Z"
+      "last_seen_posted_at": null
     },
     {
       "enabled": true,
@@ -49,7 +49,7 @@
         "verified_payment_only": false,
         "previous_clients_only": false
       },
-      "last_seen_posted_at": "2026-09-08T08:01:49.655Z"
+      "last_seen_posted_at": null
     },
     {
       "enabled": true,
@@ -60,7 +60,7 @@
         "verified_payment_only": false,
         "previous_clients_only": false
       },
-      "last_seen_posted_at": "2026-09-08T09:38:04.843Z"
+      "last_seen_posted_at": null
     },
     {
       "enabled": true,
@@ -71,7 +71,7 @@
         "verified_payment_only": false,
         "previous_clients_only": false
       },
-      "last_seen_posted_at": "2026-09-08T09:17:30.591Z"
+      "last_seen_posted_at": null
     },
     {
       "enabled": true,
@@ -82,7 +82,7 @@
         "verified_payment_only": false,
         "previous_clients_only": false
       },
-      "last_seen_posted_at": "2026-09-06T21:27:03.220Z"
+      "last_seen_posted_at": null
     },
     {
       "enabled": true,
@@ -93,7 +93,7 @@
         "verified_payment_only": false,
         "previous_clients_only": false
       },
-      "last_seen_posted_at": "2026-09-08T11:15:47.338Z"
+      "last_seen_posted_at": null
     },
     {
       "enabled": true,
@@ -104,7 +104,7 @@
         "verified_payment_only": false,
         "previous_clients_only": false
       },
-      "last_seen_posted_at": "2026-09-08T10:44:46.954Z"
+      "last_seen_posted_at": null
     }
   ]
 }

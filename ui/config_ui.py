@@ -22,7 +22,7 @@ CONFIG_PATH = Path(os.getenv("UPWORK_CONFIG_PATH", _BASE_DIR / "config" / "setti
 # The identity searches run as. Fixed here rather than chosen in the UI: it must match
 # the Upwork account that authorized .secrets/upwork_mcp_tokens.json, or every find_jobs
 # call fails with "The org_uid provided is not one of your accounts".
-DEFAULT_ACCOUNT = {"org_uid": "682932163754856448", "label": "Axiom World (Agency)"}
+DEFAULT_ACCOUNT = {"org_uid": "2011147286599802781", "label": "Shaban Nawaz (Freelancer)"}
 
 app = FastAPI(title="Upwork Bid Agent Config")
 
