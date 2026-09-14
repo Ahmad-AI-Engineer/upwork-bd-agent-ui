@@ -219,11 +219,6 @@
       <div class="legend">Runtime</div>
       <div class="grid">
         <div class="field">
-          <label class="label" for="org">Upwork account</label>
-          <select id="org" onchange="persist('Account updated.')"></select>
-          <div class="help">Which identity the searches run as.</div>
-        </div>
-        <div class="field">
           <label class="label" for="interval">Poll interval</label>
           <select id="interval" onchange="persist('Poll interval updated.')"></select>
           <div class="help">How often the poller checks for new jobs.</div>
@@ -326,12 +321,7 @@ async function boot() {
   CONFIG = await (await fetch("/api/config")).json();
   if (!Array.isArray(CONFIG.domains)) CONFIG.domains = [];
 
-  document.getElementById("org").innerHTML = SCHEMA.accounts.map(function (a) {
-    return '<option value="' + esc(a.org_uid) + '"' +
-      (a.org_uid === CONFIG.org_uid ? " selected" : "") + ">" + esc(a.label) + "</option>";
-  }).join("");
-
-  const cur = CONFIG.poll_interval_minutes || 10;
+  const cur = CONFIG.poll_interval_minutes || 15;
   document.getElementById("interval").innerHTML = SCHEMA.poll_intervals.map(function (m) {
     const text = m < 60 ? m + " minutes" : (m / 60) + (m === 60 ? " hour" : " hours");
     return '<option value="' + m + '"' + (m === cur ? " selected" : "") + ">" + text + "</option>";
@@ -565,7 +555,6 @@ function addQuery() {
 
 async function persist(successText, inModal) {
   const payload = {
-    org_uid: document.getElementById("org").value,
     poll_interval_minutes: Number(document.getElementById("interval").value),
     domains: CONFIG.domains.map(function (d) {
       return {

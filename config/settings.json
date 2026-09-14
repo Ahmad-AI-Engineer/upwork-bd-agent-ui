@@ -1,7 +1,7 @@
 {
   "org_uid": "682932163754856448",
   "org_label": "Axiom World (Agency)",
-  "poll_interval_minutes": 2,
+  "poll_interval_minutes": 15,
   "crm_enabled": true,
   "domains": [
     {

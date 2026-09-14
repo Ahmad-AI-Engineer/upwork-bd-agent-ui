@@ -42,7 +42,12 @@ HEADLESS = os.getenv("UPWORK_HEADLESS", "").strip().lower() in ("1", "true", "ye
 TOKEN_REFRESH_MARGIN_SECONDS = 300
 
 
-class AuthorizationRequiredError(RuntimeError):
+class PermanentUpworkError(RuntimeError):
+    """An error retrying cannot fix. run_with_session re-raises these immediately
+    instead of spending its backoff budget on them."""
+
+
+class AuthorizationRequiredError(PermanentUpworkError):
     pass
 
 
@@ -217,16 +222,16 @@ async def upwork_session():
                 yield session
 
 
-def _find_auth_error(exc: BaseException) -> AuthorizationRequiredError | None:
-    if isinstance(exc, AuthorizationRequiredError):
+def _find_permanent_error(exc: BaseException) -> PermanentUpworkError | None:
+    if isinstance(exc, PermanentUpworkError):
         return exc
     if isinstance(exc, BaseExceptionGroup):
         for sub in exc.exceptions:
-            found = _find_auth_error(sub)
+            found = _find_permanent_error(sub)
             if found is not None:
                 return found
     if exc.__cause__ is not None:
-        found = _find_auth_error(exc.__cause__)
+        found = _find_permanent_error(exc.__cause__)
         if found is not None:
             return found
     return None
@@ -239,10 +244,11 @@ async def run_with_session(operation, attempts: int = 4, initial_delay: float = 
             async with upwork_session() as session:
                 return await operation(session)
         except Exception as exc:
-            auth_error = _find_auth_error(exc)
-            if auth_error is not None:
-                logger.error("%s", auth_error)
-                raise auth_error from None
+            permanent = _find_permanent_error(exc)
+            if permanent is not None:
+                # Unwrapped from any ExceptionGroup, but deliberately not logged here:
+                # the caller reports it, so it appears exactly once.
+                raise permanent from None
             if attempt == attempts:
                 logger.error("MCP session failed after %d attempt(s)", attempts)
                 raise

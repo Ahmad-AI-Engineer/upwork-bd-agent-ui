@@ -19,30 +19,28 @@ logger = logging.getLogger("config_ui")
 _BASE_DIR = Path(__file__).resolve().parent.parent
 CONFIG_PATH = Path(os.getenv("UPWORK_CONFIG_PATH", _BASE_DIR / "config" / "settings.json"))
 
-ACCOUNTS = [
-    {"org_uid": "682932163754856448", "label": "Axiom World (Agency)"},
-    {"org_uid": "1113381384263086081", "label": "Kashif Manzoor (Freelancer)"},
-]
+# The identity searches run as. Fixed here rather than chosen in the UI: it must match
+# the Upwork account that authorized .secrets/upwork_mcp_tokens.json, or every find_jobs
+# call fails with "The org_uid provided is not one of your accounts".
+DEFAULT_ACCOUNT = {"org_uid": "682932163754856448", "label": "Axiom World (Agency)"}
 
 app = FastAPI(title="Upwork Bid Agent Config")
 
 
-POLL_INTERVAL_CHOICES = [2, 5, 10, 15, 30, 60, 120, 240]
+POLL_INTERVAL_CHOICES = [15, 30, 60, 120, 240]
 
 
 class ConfigPayload(BaseModel):
-    org_uid: str
-    org_label: str | None = None
-    poll_interval_minutes: int = 10
+    poll_interval_minutes: int = 15
     domains: list[dict[str, Any]]
 
 
 def load_config() -> dict:
     if not CONFIG_PATH.exists():
         return {
-            "org_uid": ACCOUNTS[0]["org_uid"],
-            "org_label": ACCOUNTS[0]["label"],
-            "poll_interval_minutes": 10,
+            "org_uid": DEFAULT_ACCOUNT["org_uid"],
+            "org_label": DEFAULT_ACCOUNT["label"],
+            "poll_interval_minutes": 15,
             "domains": [],
         }
     return json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
@@ -57,7 +55,6 @@ def save_config(config: dict) -> None:
 def get_schema() -> dict:
     return {
         "groups": FILTER_SCHEMA,
-        "accounts": ACCOUNTS,
         "options": load_options(),
         "poll_intervals": POLL_INTERVAL_CHOICES,
     }
@@ -108,12 +105,13 @@ def post_config(payload: ConfigPayload) -> JSONResponse:
             "last_seen_posted_at": last_seen,
         })
 
-    label = next((a["label"] for a in ACCOUNTS if a["org_uid"] == payload.org_uid), payload.org_label)
-
+    # The account is not editable from the UI, so it comes from DEFAULT_ACCOUNT rather
+    # than the request. Writing both halves together keeps the label from going stale
+    # against the org_uid if DEFAULT_ACCOUNT is ever pointed at another account.
     config = load_config()
     config.update({
-        "org_uid": payload.org_uid,
-        "org_label": label,
+        "org_uid": DEFAULT_ACCOUNT["org_uid"],
+        "org_label": DEFAULT_ACCOUNT["label"],
         "poll_interval_minutes": payload.poll_interval_minutes,
         "domains": domains,
     })
