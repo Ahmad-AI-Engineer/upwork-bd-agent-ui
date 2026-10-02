@@ -266,6 +266,13 @@
     </div>
     <div class="modal-body">
       <div id="modal-msg" class="msg"></div>
+      <div class="group">
+        <div class="field">
+          <label class="label" for="modal-name">Query Name</label>
+          <input type="text" id="modal-name" maxlength="120" required placeholder="e.g. Automation">
+          <div class="help">The name shown on the board. Keep the search terms in Search query below.</div>
+        </div>
+      </div>
       <div id="modal-groups"></div>
       <div class="group">
         <div class="legend">Dedup timestamp</div>
@@ -303,6 +310,43 @@ function esc(s) {
 
 function queryOf(d) {
   return ((d.filters || {}).query || d.query || "").trim();
+}
+
+// Suggested names for the existing query groups; names remain editable.
+const QUERY_NAMES = [
+  ["Data Warehouses", ["DATABRICKS", "SNOWFLAKE", "BIGQUERY", "AMAZON REDSHIFT",
+    "AZURE SYNAPSE", "MICROSOFT FABRIC", "FIREBOLT", "CLICKHOUSE", "DUCKDB", "DBT"]],
+  ["Data Engineering / Pipelines", ["APACHE SPARK", "PYSPARK", "APACHE BEAM", "DATAFORM",
+    "APACHE AIRFLOW", "AIRFLOW", "DAGSTER", "PREFECT", "MAGE", "LUIGI", "APACHE NIFI",
+    "AZURE DATA FACTORY", "AWS GLUE", "GOOGLE CLOUD DATAFLOW", "APACHE KAFKA", "KAFKA",
+    "APACHE FLINK", "KINESIS", "APACHE PULSAR", "DEBEZIUM", "SPARK STREAMING"]],
+  ["Automation", ["N8N", "ZAPIER", "MAKE", "POWER AUTOMATE", "PIPEDREAM"]],
+  ["AI Frameworks", ["LANGCHAIN", "LANGGRAPH", "CREWAI", "OPENAI AGENTS SDK", "MCP"]],
+  ["DevOps", ["JENKINS", "GITHUB ACTIONS", "TERRAFORM", "KUBERNETES", "DEVOPS"]],
+  ["Workflow & AI Automation", ["WORKFLOW AUTOMATION", "AI AUTOMATION", "AI AGENTS",
+    "AGENTIC WORKFLOWS", "NO-CODE AUTOMATION", "API INTEGRATION"]],
+  ["Workflow & AI Automation", ["WORKFLOW AUTOMATION", "AI AUTOMATION", "AI AGENTS",
+    "AGENTIC WORKFLOWS"]]
+];
+
+function queryNameKey(query) {
+  return query.replace(/["\\]/g, "").replace(/^\s*\((.*)\)\s*$/, "$1")
+    .split(/\s+OR\s+|,/i).map(function (term) {
+      return term.trim().replace(/\s+/g, " ").toUpperCase();
+    }).sort().join("|");
+}
+
+function suggestedName(d) {
+  const key = queryNameKey(queryOf(d));
+  const match = QUERY_NAMES.find(function (entry) {
+    return queryNameKey(entry[1].join(" OR ")) === key;
+  });
+  return match ? match[0] : "";
+}
+
+function nameOf(d, i) {
+  return (typeof d.name === "string" && d.name.trim()) || suggestedName(d) ||
+    (typeof i === "number" ? "Query " + (i + 1) : "Unnamed query");
 }
 
 function plural(n) {
@@ -358,7 +402,7 @@ function cardHtml(d, i) {
   return '<div class="qcard" draggable="true" data-i="' + i + '"' +
     ' ondragstart="onDragStart(event,' + i + ')" ondragend="onDragEnd(event)"' +
     ' onclick="openModal(' + i + ')">' +
-    '<div class="qcard-title">' + (esc(queryOf(d)) || "untitled") + "</div>" +
+    '<div class="qcard-title">' + esc(nameOf(d, i)) + "</div>" +
     (chips ? '<div class="chips">' + chips + "</div>" : "") +
     '<div class="qcard-meta">' + ts + "</div></div>";
 }
@@ -413,7 +457,7 @@ async function onDrop(event, active) {
 
   CONFIG.domains[i].enabled = active;
   render();
-  await persist(esc(queryOf(CONFIG.domains[i])) + (active ? " activated." : " paused."));
+  await persist(nameOf(CONFIG.domains[i], i) + (active ? " activated." : " paused."));
 }
 
 function fieldHtml(f, val) {
@@ -467,7 +511,12 @@ function openModal(i) {
   editing = i;
   const filters = d.filters || {};
 
-  document.getElementById("modal-title").textContent = queryOf(d) || "New search query";
+  document.getElementById("modal-title").textContent = nameOf(d, i);
+  const nameInput = document.getElementById("modal-name");
+  nameInput.value = (typeof d.name === "string" && d.name.trim()) || suggestedName(d);
+  nameInput.oninput = function () {
+    document.getElementById("modal-title").textContent = nameInput.value.trim() || "New search query";
+  };
   document.getElementById("modal-enabled").checked = d.enabled !== false;
   document.getElementById("modal-reset").checked = false;
   document.getElementById("modal-timestamp").textContent =
@@ -480,16 +529,8 @@ function openModal(i) {
       g.fields.map(function (f) { return fieldHtml(f, filters[f.name]); }).join("") + "</div></div>";
   }).join("");
 
-  const queryInput = document.querySelector('#modal-groups [data-name="query"]');
-  if (queryInput) {
-    queryInput.addEventListener("input", function () {
-      document.getElementById("modal-title").textContent =
-        queryInput.value.trim() || "New search query";
-    });
-    queryInput.focus();
-  }
-
   document.getElementById("overlay").classList.add("open");
+  nameInput.focus();
 }
 
 function closeModal() {
@@ -521,7 +562,16 @@ function readModalFilters() {
 
 async function saveModal() {
   if (editing === null) return;
+  const name = document.getElementById("modal-name").value.trim();
+  if (!name || name.length > 120) {
+    const msg = document.getElementById("modal-msg");
+    msg.className = "msg err";
+    msg.textContent = "Enter a query name of 1 to 120 characters.";
+    document.getElementById("modal-name").focus();
+    return;
+  }
   const d = CONFIG.domains[editing];
+  d.name = name;
   d.filters = readModalFilters();
   d.enabled = document.getElementById("modal-enabled").checked;
   d.reset_timestamp = document.getElementById("modal-reset").checked;
@@ -534,7 +584,7 @@ async function saveModal() {
 
 async function removeQuery() {
   if (editing === null) return;
-  const name = queryOf(CONFIG.domains[editing]) || "this query";
+  const name = nameOf(CONFIG.domains[editing], editing);
   if (!confirm("Remove " + name + "?")) return;
   CONFIG.domains.splice(editing, 1);
   editing = null;
@@ -558,6 +608,7 @@ async function persist(successText, inModal) {
     poll_interval_minutes: Number(document.getElementById("interval").value),
     domains: CONFIG.domains.map(function (d) {
       return {
+        name: (typeof d.name === "string" && d.name.trim()) || suggestedName(d),
         enabled: d.enabled !== false,
         filters: d.filters || {},
         reset_timestamp: !!d.reset_timestamp

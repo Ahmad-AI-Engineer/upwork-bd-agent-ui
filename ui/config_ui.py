@@ -70,6 +70,9 @@ def post_config(payload: ConfigPayload) -> JSONResponse:
     errors: list[str] = []
     queries = set()
     for d in payload.domains:
+        name = d.get("name", "")
+        if not isinstance(name, str) or len(name.strip()) > 120:
+            errors.append("query name must be text of at most 120 characters")
         filters = d.get("filters") or {}
         query = (filters.get("query") or "").strip()
         if not query:
@@ -100,6 +103,7 @@ def post_config(payload: ConfigPayload) -> JSONResponse:
         if d.get("reset_timestamp"):
             last_seen = None
         domains.append({
+            "name": d.get("name", existing.get(query, {}).get("name", "")).strip(),
             "enabled": bool(d.get("enabled", True)),
             "filters": {k: v for k, v in filters_in.items() if v not in (None, "", [])},
             "last_seen_posted_at": last_seen,
