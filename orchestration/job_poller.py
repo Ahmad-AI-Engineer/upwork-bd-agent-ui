@@ -15,6 +15,7 @@ import polars as pl
 
 import env_bootstrap  # noqa: F401
 from crm_client import crm_enabled, send_jobs
+from crm_payload import to_crm_payload
 from job_flatten import flatten_job_record
 from search_filters import build_search_params
 from job_schema import to_report_record
@@ -311,8 +312,18 @@ def log_jobs_preview(df: pl.DataFrame) -> None:
         logger.exception("Failed to render jobs preview; data was already saved")
 
 
+def log_flag_summary(total_jobs: int, flagged_jobs: int, rule_counts: dict[str, int]) -> None:
+    logger.info(
+        "Job flag summary: total_jobs=%d, flagged_jobs=%d, rule_counts=%s",
+        total_jobs, flagged_jobs, json.dumps(rule_counts),
+    )
+
+
 async def poll_once(session, config: dict) -> None:
     org_uid = config["org_uid"]
+    total_jobs = 0
+    flagged_jobs = 0
+    rule_counts = {f"R{i}": 0 for i in range(1, 22)}
     logger.info("Poll run starting")
 
     for domain in config["domains"]:
@@ -333,6 +344,20 @@ async def poll_once(session, config: dict) -> None:
                 df = await build_jobs_dataframe(session, org_uid, domain_name, new_jobs)
                 log_jobs_preview(df)
                 records = records_from_dataframe(df)
+                for record in records:
+                    record.update({
+                        "query_id": domain.get("query_id"),
+                        "query_name": domain.get("name"),
+                        "practice_id": domain.get("practice_id"),
+                        "practice_name": domain.get("practice_name"),
+                        "last_run": domain.get("last_run"),
+                    })
+
+                for payload in to_crm_payload(records):
+                    total_jobs += 1
+                    flagged_jobs += int(payload["flagged"])
+                    for rule in payload["flag_reasons"]:
+                        rule_counts[rule] += 1
 
                 if not crm_enabled(config):
                     logger.warning(
@@ -351,11 +376,14 @@ async def poll_once(session, config: dict) -> None:
                 newest = max(jobs, key=lambda j: parse_timestamp(j["created_date"]))
                 save_cursor(domain_name, newest["created_date"])
         except PermanentUpworkError:
+            log_flag_summary(total_jobs, flagged_jobs, rule_counts)
             raise
         except Exception:
             # The cursor stays put, so this query's jobs are retried next cycle
             # instead of the whole run dying on one bad response.
             logger.exception("[%s] failed; skipping this query for this cycle", domain_name)
+
+    log_flag_summary(total_jobs, flagged_jobs, rule_counts)
 
 
 def poll_interval_seconds(config: dict) -> float:

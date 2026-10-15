@@ -39,6 +39,102 @@ MCP = "additional_mcp_fields"
 CLIENT_ID_KEY = "get.data.marketplaceJobPosting.clientCompanyPublic.id"
 SCREENING_KEY = "get.screening_questions"
 
+TARGET_COUNTRIES = {
+    "india", "ind", "in",
+    "pakistan", "pak", "pk",
+    "nigeria", "nga", "ng",
+    "israel", "isr", "il",
+    "bangladesh", "bgd", "bd",
+    "philippines", "phl", "ph",
+}
+OFFSCOPE_SKILLS = (
+    "video editing", "video production", "adobe premiere pro", "prospect list",
+    "cold calling", "outbound sales", "telemarketing", "appointment setting",
+    "b2b lead generation", "list building", "virtual assistance",
+    "social media management", "search engine optimization", "google ads",
+    "instagram", "content writing", "ios", "ios development", "android",
+    "react native", "landing page", "sales funnel builder", "campaign management",
+)
+TITLE_PATTERNS = {
+    "senior_title": re.compile(r"senior|\blead\b|architect|consultant", re.IGNORECASE),
+    "othercrm_title": re.compile(r"gohighlevel|\bghl\b|salesforce|hubspot|zoho|\bsap\b|dynamics|airtable", re.IGNORECASE),
+    "scraping_title": re.compile(r"scrap|data entry|extraction|research|virtual assistant|\blist\b", re.IGNORECASE),
+    "webapp_title": re.compile(r"react|node|next\.js|supabase|wordpress|mobile|\bios\b|android|flutter|web app|website|full.?stack|shopify", re.IGNORECASE),
+    "sales_title": re.compile(r"lead gen|\bcold\b|setter|appointment|outbound|\bsales\b|linkedin|\bb2b\b", re.IGNORECASE),
+    "marketing_title": re.compile(r"marketing|\bads\b|\bseo\b|funnel|growth|social media|\bmeta\b|campaign", re.IGNORECASE),
+    "video_title": re.compile(r"video|editor|youtube|content", re.IGNORECASE),
+    "devops_title": re.compile(r"devops|\baws\b|azure|kubernetes|terraform|cloud", re.IGNORECASE),
+}
+
+
+def job_flag_reasons(job: dict[str, Any]) -> list[str]:
+    budget = job.get("budget_fixed")
+    price_under_100 = (
+        job.get("job_type") == "FIXED"
+        and isinstance(budget, (int, float))
+        and not isinstance(budget, bool)
+        and 0 < budget < 100
+    )
+    country = job.get("client_country")
+    loc_target = isinstance(country, str) and country.strip().casefold() in TARGET_COUNTRIES
+    no_country = country is None or country == ""
+    skills = job.get("skills")
+    offscope_skill = isinstance(skills, str) and any(
+        skill in skills.casefold() for skill in OFFSCOPE_SKILLS
+    )
+    interviews = job.get("invited_to_interview")
+    interviewing = (
+        isinstance(interviews, (int, float))
+        and not isinstance(interviews, bool)
+        and interviews > 0
+    )
+    duration = job.get("budget_duration")
+    duration_under_1mo = (
+        isinstance(duration, str) and duration.casefold() == "less than 1 month"
+    )
+    open_jobs = job.get("client_jobs_open")
+    has_three_open_jobs = (
+        isinstance(open_jobs, (int, float))
+        and not isinstance(open_jobs, bool)
+        and open_jobs >= 3
+    )
+    hire_rate = job.get("client_hire_rate")
+    hire_rate_under_30_percent = (
+        isinstance(hire_rate, (int, float))
+        and not isinstance(hire_rate, bool)
+        and 0 < hire_rate < 30
+    )
+    query_name = job.get("query_name")
+    title = job.get("title")
+    title_matches = {
+        name: isinstance(title, str) and bool(pattern.search(title))
+        for name, pattern in TITLE_PATTERNS.items()
+    }
+    rules = (
+        ("R1", price_under_100 and loc_target),
+        ("R2", price_under_100 and no_country),
+        ("R3", price_under_100 and offscope_skill),
+        ("R9", price_under_100 and interviewing),
+        ("R13", loc_target and duration_under_1mo),
+        ("R15", loc_target and query_name == "Keyword: PowerBI"),
+        ("R16", loc_target and interviewing),
+        ("R20", loc_target and query_name == "Keyword: Power BI"),
+        ("R4", price_under_100 and title_matches["senior_title"]),
+        ("R5", price_under_100 and title_matches["othercrm_title"]),
+        ("R6", price_under_100 and title_matches["scraping_title"]),
+        ("R7", price_under_100 and title_matches["webapp_title"]),
+        ("R8", price_under_100 and title_matches["sales_title"]),
+        ("R10", price_under_100 and title_matches["video_title"]),
+        ("R11", price_under_100 and title_matches["marketing_title"]),
+        ("R17", loc_target and title_matches["devops_title"]),
+        ("R18", loc_target and title_matches["marketing_title"]),
+        ("R19", loc_target and title_matches["video_title"]),
+        ("R21", loc_target and title_matches["scraping_title"]),
+        ("R12", loc_target and has_three_open_jobs),
+        ("R14", loc_target and hire_rate_under_30_percent),
+    )
+    return [rule for rule, matched in rules if matched]
+
 
 def _to_number(value: Any) -> float | None:
     if value is None or isinstance(value, bool):
@@ -113,7 +209,7 @@ def to_crm_job(record: dict[str, Any]) -> dict[str, Any]:
         verified if isinstance(verified, bool) else str(verified).upper() == "VERIFIED"
     )
 
-    return {
+    payload = {
         "job_id": job.get("job_id"),
         "title": job.get("title"),
         "url": job.get("url"),
@@ -168,7 +264,18 @@ def to_crm_job(record: dict[str, Any]) -> dict[str, Any]:
             else None
         ),
         "open_jobs": [],
+        "query_id": record.get("query_id"),
+        "query_name": record.get("query_name"),
+        "practice_id": record.get("practice_id"),
+        "practice_name": record.get("practice_name"),
+        "last_run": record.get("last_run"),
     }
+    reasons = job_flag_reasons(payload)
+    # flagged = true  -> good job (apply / green in Odoo)
+    # flagged = false -> rejected (matched a reject rule / red in Odoo)
+    payload["flagged"] = not reasons
+    payload["flag_reasons"] = reasons
+    return payload
 
 
 def to_crm_payload(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
